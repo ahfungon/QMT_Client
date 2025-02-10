@@ -1,0 +1,28 @@
+{
+  "cash": 387.9999999999636,
+  "total_assets": 2564024.0,
+  "last_updated": "2025-02-10 08:43:27",
+  "positions": {
+    "002469": {
+      "volume": 139200,
+      "cost_price": 7.56,
+      "current_price": 7.56,
+      "market_value": 1052352.0,
+      "profit_loss": 0.0
+    },
+    "000001": {
+      "volume": 87800,
+      "cost_price": 11.38,
+      "current_price": 11.38,
+      "market_value": 999164.0000000001,
+      "profit_loss": 0.0
+    },
+    "300315": {
+      "volume": 86800,
+      "cost_price": 5.9,
+      "current_price": 5.9,
+      "market_value": 512120.00000000006,
+      "profit_loss": 0.0
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# 基础依赖
+requests>=2.31.0
+python-dateutil>=2.8.2
+
+# 调度器
+APScheduler>=3.10.1
+
+# 日志
+loguru>=0.7.2
+
+# 测试
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.10.0
+
+# 类型提示
+typing-extensions>=4.7.1
+
+# 工具
+python-dotenv>=1.0.0 
