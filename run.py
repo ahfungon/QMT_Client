@@ -10,7 +10,7 @@ from src.strategy.strategy import StrategyManager
 from src.trade.trader import StockTrader
 from config.settings import (
     API_BASE_URL, LOG_LEVEL, LOG_FORMAT, LOG_FILE,
-    SCHEDULE_INTERVAL, ASSETS_UPDATE_INTERVAL, POSITION_FILE, INITIAL_CASH
+    SCHEDULE_INTERVAL, ASSETS_UPDATE_INTERVAL, POSITION_FILE
 )
 
 # 配置日志
@@ -44,33 +44,43 @@ class TradingApp:
         Returns:
             是否需要补仓
         """
-        # 获取当前持仓信息
-        positions = self.trader._load_positions()
+        # 获取最新资产信息
+        assets = self.trader._load_assets()
+        positions = assets['positions']
+        total_assets = assets['total_assets']
+        
+        # 如果没有持仓，需要建仓
         if stock_code not in positions:
             logger.info(f"股票 {stock_code} 当前无持仓，需要建仓")
             return True
             
-        # 获取当前现金余额
-        total_cash = positions.get('cash', INITIAL_CASH)
-        
-        # 计算当前持仓市值
+        # 获取当前持仓市值和总资产
         current_position = positions[stock_code]
-        current_value = current_position['volume'] * current_position['price']
-        
-        # 计算总资产
-        total_assets = total_cash
-        for code, pos in positions.items():
-            if code != 'cash':  # 跳过现金记录
-                total_assets += pos['volume'] * pos['price']
+        current_market_value = current_position['market_value']
         
         # 计算当前持仓比例（相对于总资产）
-        current_ratio = current_value / total_assets
+        current_ratio = current_market_value / total_assets
         
-        logger.info(f"股票 {stock_code} 当前持仓比例: {current_ratio:.2%}, 目标比例: {target_ratio:.2%}, "
-                   f"总资产: {total_assets:.2f}, 现金: {total_cash:.2f}")
+        # 计算比例差异（允许1%的误差范围）
+        ratio_diff = abs(current_ratio - target_ratio)
+        tolerance = 0.01  # 1%的容差
         
+        logger.info(f"股票 {stock_code} 持仓检查 - 当前比例: {current_ratio:.2%}, 目标比例: {target_ratio:.2%}, "
+                   f"差异: {ratio_diff:.2%}, 总资产: {total_assets:.2f}, 现金: {assets['cash']:.2f}")
+        
+        # 如果当前比例在目标比例的误差范围内，不需要调整
+        if ratio_diff <= tolerance:
+            logger.info(f"股票 {stock_code} 当前持仓比例在目标范围内，无需调整")
+            return False
+            
         # 如果当前比例小于目标比例，需要补仓
-        return current_ratio < target_ratio
+        if current_ratio < target_ratio:
+            logger.info(f"股票 {stock_code} 当前持仓比例低于目标比例，需要补仓")
+            return True
+            
+        # 如果当前比例大于目标比例，不需要补仓
+        logger.info(f"股票 {stock_code} 当前持仓比例高于目标比例，无需补仓")
+        return False
         
     def execute_strategy(self, strategy: dict) -> None:
         """

@@ -11,7 +11,6 @@ API_VERSION = "v1"
 API_BASE_URL = f"http://{API_HOST}:{API_PORT}/api/{API_VERSION}"
 
 # 交易配置
-INITIAL_CASH = 1000000  # 初始资金：100万
 MIN_BUY_VOLUME = 100    # 最小买入数量：100股
 MIN_SELL_VOLUME = 100   # 最小卖出数量：100股
 VOLUME_STEP = 100       # 交易数量步长：100股的整数倍
