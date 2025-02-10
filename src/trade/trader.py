@@ -225,13 +225,14 @@ class StockTrader:
         assets['cash'] = self.total_cash
         self._save_assets(assets)
         
-    def _calculate_buy_volume(self, price: float, position_ratio: float) -> int:
+    def _calculate_buy_volume(self, price: float, position_ratio: float, stock_code: str) -> int:
         """
         计算可买入数量
         
         Args:
             price: 股票价格
             position_ratio: 仓位比例
+            stock_code: 股票代码
             
         Returns:
             可买入数量（取100的整数倍）
@@ -242,18 +243,34 @@ class StockTrader:
             logger.error(f"无效的参数 - 价格: {price}, 仓位: {position_ratio}")
             return 0
             
-        # 获取最新的总资产
+        # 获取最新的总资产和当前持仓
         assets = self._load_assets()
         total_assets = assets['total_assets']
         
-        # 计算目标金额
-        available_amount = total_assets * position_ratio
+        # 计算目标市值
+        target_market_value = total_assets * position_ratio
         
-        # 检查现金是否足够
-        if not self._check_cash_sufficient(available_amount):
+        # 获取当前持仓市值
+        current_market_value = 0
+        if stock_code in assets['positions']:
+            current_market_value = assets['positions'][stock_code]['market_value']
+            
+        # 计算需要补仓的市值
+        need_market_value = target_market_value - current_market_value
+        
+        logger.info(f"仓位计算 - 总资产: {total_assets:.2f}, 目标市值: {target_market_value:.2f}, "
+                   f"当前市值: {current_market_value:.2f}, 需补仓: {need_market_value:.2f}")
+        
+        if need_market_value <= 0:
+            logger.info("无需补仓")
             return 0
             
-        volume = int(available_amount / price / VOLUME_STEP) * VOLUME_STEP
+        # 检查现金是否足够
+        if not self._check_cash_sufficient(need_market_value):
+            return 0
+            
+        # 计算需要买入的数量（向下取整到100的整数倍）
+        volume = int(need_market_value / price / VOLUME_STEP) * VOLUME_STEP
         result = max(volume, MIN_BUY_VOLUME)
         
         # 再次检查实际所需金额是否超过现金余额
@@ -265,7 +282,7 @@ class StockTrader:
                 logger.error(f"现金不足以购买最小数量 - 需要: {MIN_BUY_VOLUME * price:.2f}, 现有: {self.total_cash:.2f}")
                 return 0
                 
-        logger.debug(f"计算结果 - 可用金额: {available_amount}, 买入数量: {result}, 所需资金: {result * price:.2f}")
+        logger.debug(f"计算结果 - 需补仓金额: {need_market_value:.2f}, 买入数量: {result}, 所需资金: {result * price:.2f}")
         return result
         
     def _calculate_sell_volume(self, current_volume: int, position_ratio: float) -> int:
@@ -354,7 +371,7 @@ class StockTrader:
             logger.info(f"当前持仓数量: {current_volume}, 持仓价格: {current_price_in_pos}")
             
             # 计算买入数量
-            volume = self._calculate_buy_volume(current_price, position_ratio)
+            volume = self._calculate_buy_volume(current_price, position_ratio, stock_code)
             
             if volume <= 0:
                 logger.error("买入数量为0，交易失败")
