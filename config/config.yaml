@@ -1,0 +1,59 @@
+# 账户配置
+account:
+  initial_cash: 1000000.00  # 初始资金
+  available_cash: 1000000.00  # 可用资金
+  total_assets: 1000000.00  # 总资产
+
+# 交易配置
+trading:
+  max_position_ratio: 0.3  # 单个股票最大持仓比例
+  max_trade_amount: 500000.00  # 单笔最大交易金额
+  min_trade_amount: 1000.00  # 单笔最小交易金额
+  min_buy_volume: 100  # 最小买入数量
+  min_sell_volume: 100  # 最小卖出数量
+  volume_step: 100  # 交易数量步长
+  price_deviation: 0.02  # 允许的价格偏离度
+  trade_frequency_limit: 10  # 每分钟最大交易次数
+  trading_hours:
+    start: "09:30:00"  # 交易开始时间
+    end: "23:59:59"  # 交易结束时间
+  trading_days: [1, 2, 3, 4, 5, 6, 7]  # 交易日（1-7，1表示周一）
+
+# API配置
+api:
+  host: "127.0.0.1"
+  port: 5000
+  version: "v1"
+  base_url: "http://127.0.0.1:5000/api/v1"
+  timeout: 30  # API超时时间（秒）
+  retry_times: 3  # API重试次数
+  retry_interval: 5  # 重试间隔（秒）
+
+# 数据缓存配置
+cache:
+  quote_ttl: 1  # 行情数据缓存时间（秒）
+  strategy_ttl: 30  # 策略数据缓存时间（秒）
+  position_ttl: 60  # 持仓数据缓存时间（秒）
+
+# 监控配置
+monitor:
+  check_interval: 30  # 策略检查间隔（秒）
+  health_check_interval: 300  # 健康检查间隔（秒）
+
+# 日志配置
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: "logs/app.log"
+  max_size: 100  # 单个日志文件最大大小（MB）
+  backup_count: 30  # 保留的日志文件数量
+  encoding: "utf-8"
+
+# 数据文件配置
+data:
+  base_dir: "data"
+  positions_file: "data/positions.json"
+  assets_file: "data/assets.json"
+  strategies_file: "data/strategies.json"
+  file_encoding: "utf-8"
+  json_indent: 2 

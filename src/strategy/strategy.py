@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 import requests
 import logging
 from datetime import datetime, timedelta
+from src.config import config
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -12,15 +13,10 @@ logger = logging.getLogger(__name__)
 class StrategyManager:
     """策略管理类"""
     
-    def __init__(self, base_url: str = "http://127.0.0.1:5000/api/v1"):
-        """
-        初始化策略管理类
-        
-        Args:
-            base_url: API基础URL
-        """
-        self.base_url = base_url
-        logger.info(f"初始化策略管理器，API地址: {base_url}")
+    def __init__(self):
+        """初始化策略管理类"""
+        self.base_url = config.get('api.base_url')
+        logger.info(f"初始化策略管理器，API地址: {self.base_url}")
         
     def fetch_active_strategies(self) -> List[Dict]:
         """
@@ -33,7 +29,10 @@ class StrategyManager:
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)
         
-        logger.info(f"开始获取策略，时间范围: {start_time} 至 {end_time}")
+        logger.info("="*50)
+        logger.info("开始获取策略")
+        logger.info("="*50)
+        logger.info(f"查询时间范围: {start_time} 至 {end_time}")
         
         try:
             # 构建请求参数
@@ -44,20 +43,40 @@ class StrategyManager:
                 'sort_by': 'created_at',
                 'order': 'desc'
             }
-            logger.debug(f"请求参数: {params}")
+            logger.info(f"请求参数: {params}")
             
             # 调用策略查询接口
             url = f"{self.base_url}/strategies/search"
             logger.info(f"调用策略查询接口: {url}")
             
-            response = requests.get(url, params=params)
+            response = requests.get(
+                url, 
+                params=params,
+                timeout=config.get('api.timeout')
+            )
             response.raise_for_status()
             result = response.json()
             
             if result['code'] == 200:
                 strategies = result['data']
-                logger.info(f"成功获取到 {len(strategies)} 个策略")
-                logger.debug(f"策略详情: {strategies}")
+                logger.info("-"*50)
+                logger.info(f"获取到 {len(strategies)} 个策略")
+                logger.info("-"*50)
+                
+                # 详细输出每个策略的信息
+                for i, strategy in enumerate(strategies, 1):
+                    logger.info(f"策略 {i}:")
+                    logger.info(f"    ID: {strategy.get('id')}")
+                    logger.info(f"    股票: {strategy.get('stock_name')}({strategy.get('stock_code')})")
+                    logger.info(f"    动作: {strategy.get('action')}")
+                    logger.info(f"    仓位比例: {strategy.get('position_ratio')}")
+                    logger.info(f"    价格区间: {strategy.get('price_min', '不限')} - {strategy.get('price_max', '不限')}")
+                    logger.info(f"    执行状态: {strategy.get('execution_status')}")
+                    logger.info(f"    是否有效: {strategy.get('is_active')}")
+                    logger.info(f"    创建时间: {strategy.get('created_at')}")
+                    logger.info(f"    更新时间: {strategy.get('updated_at')}")
+                    logger.info("-"*30)
+                
                 return strategies
             else:
                 logger.error(f"获取策略失败: {result['message']}")
@@ -128,7 +147,13 @@ class StrategyManager:
             strategy['price_min'] = price_min
             strategy['price_max'] = price_max
             
-            if position_ratio <= 0 or position_ratio > 1:
+            # 检查仓位比例是否超过最大限制
+            max_position_ratio = config.get('trading.max_position_ratio')
+            if position_ratio > max_position_ratio:
+                logger.error(f"仓位比例 {position_ratio} 超过最大限制 {max_position_ratio}")
+                return False
+                
+            if position_ratio <= 0:
                 logger.error(f"仓位比例无效: {position_ratio}")
                 return False
                 

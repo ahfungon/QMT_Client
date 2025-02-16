@@ -1,11 +1,11 @@
 import shutil
 from pathlib import Path
 from datetime import datetime
-from config.settings import POSITION_FILE
+from src.config import config
 
 def backup_positions():
     """备份持仓数据"""
-    source = Path(POSITION_FILE)
+    source = Path(config.get('data.positions_file'))
     if not source.exists():
         return
         

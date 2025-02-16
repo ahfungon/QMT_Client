@@ -63,6 +63,7 @@ htmlcov/
 data/*.json
 data/positions.json
 data/assets.json
+data/*.lock
 
 # Test
 .pytest_cache/
