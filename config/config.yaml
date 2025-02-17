@@ -1,12 +1,12 @@
 # 账户配置
 account:
-  initial_cash: 1000000.00  # 初始资金
-  available_cash: 1000000.00  # 可用资金
-  total_assets: 1000000.00  # 总资产
+  initial_cash: 300000.00  # 初始资金
+  available_cash: 300000.00  # 可用资金
+  total_assets: 300000.00  # 总资产
 
 # 交易配置
 trading:
-  max_position_ratio: 0.3  # 单个股票最大持仓比例
+  max_position_ratio: 0.9  # 单个股票最大持仓比例
   max_trade_amount: 500000.00  # 单笔最大交易金额
   min_trade_amount: 1000.00  # 单笔最小交易金额
   min_buy_volume: 100  # 最小买入数量

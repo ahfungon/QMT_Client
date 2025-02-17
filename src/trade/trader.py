@@ -332,15 +332,97 @@ class StockTrader:
             
     def _load_initial_assets(self) -> None:
         """加载初始资产信息"""
+        # 先检查持仓和资产文件是否为空
+        positions = self._load_positions()
         assets = self._load_assets()
-        self.total_cash = assets['cash']  # 当前现金
-        self.total_assets = assets['total_assets']  # 总资产
+        
+        # 如果两个文件都为空，则初始化
+        if not positions and not assets['positions']:
+            logger.info("持仓和资产文件为空，开始初始化数据")
+            try:
+                # 从服务器获取最新持仓数据
+                api_url = f"{self.base_url}/positions"
+                response = requests.get(api_url, timeout=config.get('api.timeout'))
+                response.raise_for_status()
+                data = response.json()
+                
+                if data['code'] == 200 and 'data' in data:
+                    positions_data = data['data']
+                    if isinstance(positions_data, list):
+                        positions = positions_data
+                    elif isinstance(positions_data, dict) and 'positions' in positions_data:
+                        positions = positions_data['positions']
+                    else:
+                        logger.error(f"无效的持仓数据格式: {positions_data}")
+                        positions = []
+                        
+                    # 更新持仓数据
+                    positions_dict = {}
+                    total_cost_value = 0.0  # 总持仓成本
+                    
+                    for position in positions:
+                        stock_code = position['stock_code']
+                        volume = position['total_volume']
+                        cost_price = position['dynamic_cost']
+                        positions_dict[stock_code] = {
+                            'volume': volume,
+                            'price': cost_price,
+                            'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                        total_cost_value += volume * cost_price  # 累加持仓成本
+                        
+                    # 保存持仓数据
+                    self._save_positions(positions_dict)
+                    
+                    # 更新资产数据
+                    initial_total_assets = config.get('account.total_assets')
+                    assets = {
+                        "cash": initial_total_assets - total_cost_value,  # 现金 = 总资产 - 持仓成本总和
+                        "total_assets": initial_total_assets,
+                        "total_market_value": total_cost_value,  # 初始时使用成本作为市值
+                        "positions": {},
+                        "updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                    
+                    # 更新持仓明细
+                    for position in positions:
+                        stock_code = position['stock_code']
+                        volume = position['total_volume']
+                        cost_price = position['dynamic_cost']
+                        assets['positions'][stock_code] = {
+                            'volume': volume,
+                            'cost_price': cost_price,
+                            'current_price': cost_price,  # 初始时使用成本价作为当前价
+                            'market_value': volume * cost_price
+                        }
+                    
+                    # 保存资产数据
+                    self._save_assets(assets)
+                    logger.info(f"数据初始化完成 - 总成本: {total_cost_value:.2f}, 现金: {assets['cash']:.2f}")
+                    
+            except Exception as e:
+                logger.error(f"初始化数据失败: {str(e)}")
+                # 如果初始化失败，使用配置的初始值
+                initial_cash = config.get('account.initial_cash')
+                assets = {
+                    "cash": initial_cash,
+                    "total_assets": initial_cash,
+                    "total_market_value": 0.00,
+                    "positions": {},
+                    "updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                self._save_assets(assets)
+                self._save_positions({})
+        else:
+            logger.info("持仓和资产文件不为空，使用现有数据")
+                
+        # 加载最终的资产信息
+        assets = self._load_assets()
+        self.total_cash = assets['cash']
+        self.total_assets = assets['total_assets']
         
         logger.info(f"初始化交易模块 - API地址: {self.base_url}")
         logger.info(f"当前资产状况 - 现金: {self.total_cash:.2f}, 总资产: {self.total_assets:.2f}")
-        
-        # 同步持仓信息到 positions.json
-        self._sync_positions_from_assets()
         
     def _sync_positions_from_assets(self) -> None:
         """从 assets.json 同步持仓信息到 positions.json"""
@@ -559,11 +641,21 @@ class StockTrader:
             return 0
             
         # 直接计算卖出数量
-        volume = int(current_volume * position_ratio)
+        target_sell_volume = int(current_volume * position_ratio)
+        logger.info(f"目标卖出数量: {target_sell_volume}")
         
         # 确保为 volume_step 的整数倍
         volume_step = config.get('trading.volume_step', 100)
-        volume = (volume // volume_step) * volume_step
+        volume = (target_sell_volume // volume_step) * volume_step
+        
+        # 如果因为取整导致卖出数量为0，但实际需要卖出，则至少卖出一个步长
+        if volume == 0 and target_sell_volume > 0:
+            if current_volume >= volume_step:
+                volume = volume_step
+                logger.info(f"因为取整导致卖出数量为0，调整为最小步长: {volume}")
+            else:
+                logger.warning(f"当前持仓 {current_volume} 小于最小步长 {volume_step}")
+                return 0
         
         # 检查是否满足最小卖出数量
         min_volume = config.get('trading.min_sell_volume', 100)
@@ -572,7 +664,7 @@ class StockTrader:
                 volume = min_volume
                 logger.info(f"调整为最小卖出数量: {volume}")
             else:
-                logger.warning(f"计算的卖出数量 {volume} 小于最小卖出数量 {min_volume}")
+                logger.warning(f"当前持仓 {current_volume} 小于最小卖出数量 {min_volume}")
                 return 0
                 
         # 确保不超过当前持仓
@@ -580,7 +672,7 @@ class StockTrader:
             volume = current_volume
             logger.info(f"卖出数量超过持仓，调整为全部持仓: {volume}")
             
-        logger.info(f"计算卖出数量结果: {volume}")
+        logger.info(f"最终计算的卖出数量: {volume}")
         return volume
         
     def _get_current_price(self, stock_code: str, min_price: float, max_price: float, action: str = 'buy') -> Optional[float]:
@@ -768,13 +860,15 @@ class StockTrader:
                             strategy_status = "completed"
                             logger.info(f"买入策略执行完成 - 当前市值: {current_value:.2f}, 目标市值: {target_value:.2f}")
                     else:  # sell
-                        # 卖出策略的完成判断
-                        target_volume = current_volume * (1 - strategy['position_ratio'])
-                        if current_volume <= target_volume + 100:  # 允许100股的误差
+                        # 获取原始策略信息中的目标持仓数量
+                        original_target_volume = strategy.get('original_volume', current_volume) * (1 - strategy['position_ratio'])
+                        
+                        # 检查是否已经达到原始策略的目标持仓
+                        if current_volume <= original_target_volume + 100:  # 允许100股的误差
                             strategy_status = "completed"
-                            logger.info(f"卖出策略执行完成 - 目标剩余: {target_volume}, 当前剩余: {current_volume}")
+                            logger.info(f"卖出策略执行完成 - 目标剩余: {original_target_volume}, 当前剩余: {current_volume}")
                         else:
-                            logger.info(f"卖出策略部分完成 - 目标剩余: {target_volume}, 当前剩余: {current_volume}")
+                            logger.info(f"卖出策略部分完成 - 目标剩余: {original_target_volume}, 当前剩余: {current_volume}")
             
             # 调用API记录执行
             api_url = f"{self.base_url}/executions"
@@ -807,7 +901,8 @@ class StockTrader:
             if strategy_status == "completed" and strategy_id:
                 update_url = f"{self.base_url}/strategies/{strategy_id}"
                 update_data = {
-                    "execution_status": "completed"
+                    "execution_status": "completed",
+                    "is_active": False  # 策略完成后设置为非活动状态
                 }
                 response = requests.put(
                     update_url,
@@ -892,7 +987,7 @@ class StockTrader:
         # 获取当前价格
         current_price = self._get_current_price(stock_code, min_price, max_price, 'buy')
         if not current_price:
-            raise PriceNotMatchError(f"当前价格 {current_price} 不在指定区间 [{min_price}, {max_price}] 内")
+            raise PriceNotMatchError(f"当前价格 {self.quote_service.get_real_time_quote(stock_code)['price']} 不在指定区间 [{min_price}, {max_price}] 内")
             
         # 检查价格偏离度
         if not self._check_price_deviation(stock_code, current_price):
@@ -935,7 +1030,15 @@ class StockTrader:
         # 使用剩余目标市值计算买入数量
         volume = self._calculate_buy_volume(current_price, remaining_target_value / total_assets, stock_code)
         if volume <= 0:
-            raise TradeError("计算买入数量失败")
+            min_trade_volume = config.get('trading.min_buy_volume', 100)
+            return {
+                'status': 'failed',
+                'message': f'资金不足以买入最小交易数量（最小数量：{min_trade_volume}股，当前可用资金：{self.total_cash:.2f}，所需资金：{min_trade_volume * current_price:.2f}）',
+                'stock_code': stock_code,
+                'price': current_price,
+                'volume': 0,
+                'amount': 0
+            }
             
         # 计算所需资金
         required_amount = current_price * volume
@@ -1052,10 +1155,13 @@ class StockTrader:
                             'amount': 0
                         }
                         
-                    # 检查是否已经达到目标持仓
-                    target_volume = current_volume * (1 - position_ratio)
-                    if current_volume <= target_volume + 100:  # 允许100股的误差
-                        logger.info(f"当前持仓已达到目标 - 目标剩余: {target_volume}, 当前持仓: {current_volume}")
+                    # 获取原始策略信息中的目标持仓数量
+                    original_target_volume = strategy.get('original_volume', current_volume) * (1 - position_ratio)
+                    current_target_volume = current_volume * (1 - position_ratio)
+                    
+                    # 检查是否已经达到原始策略的目标持仓
+                    if current_volume <= original_target_volume + 100:  # 允许100股的误差
+                        logger.info(f"当前持仓已达到原始策略目标 - 原始目标剩余: {original_target_volume}, 当前持仓: {current_volume}")
                         return {
                             'status': 'success',
                             'message': '当前持仓已达到目标',
@@ -1064,6 +1170,7 @@ class StockTrader:
                             'volume': 0,
                             'amount': 0
                         }
+                    logger.info(f"当前持仓需要调整 - 原始目标剩余: {original_target_volume}, 当前持仓: {current_volume}, 本次目标剩余: {current_target_volume}")
             except Exception as e:
                 logger.error(f"检查策略状态失败: {str(e)}")
                 # 如果检查失败，继续执行，避免因为API问题影响交易
