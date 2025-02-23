@@ -50,7 +50,7 @@ class QuoteService:
         获取股票实时行情
         
         Args:
-            stock_code: 股票代码（如：000001、00700）
+            stock_code: 股票代码，如果是4位代码，认为是港股，会自动加前缀'hk0'
             
         Returns:
             行情数据字典，包含：
@@ -66,6 +66,11 @@ class QuoteService:
             - date: 日期
             - time: 时间
         """
+        # 如果是港股，4位代码，增加前缀
+        if len(stock_code) == 4:
+            logger.info(f"检测到港股代码：{stock_code}，转换为：hk0{stock_code}")
+            stock_code = f"hk0{stock_code}"
+        
         try:
             # 格式化股票代码
             full_code = self._format_stock_code(stock_code)
@@ -97,20 +102,31 @@ class QuoteService:
                 logger.error("行情数据字段不完整")
                 return None
                 
+            # 预处理成交量字段，去除空白和逗号
+            volume_str = data[6].strip().replace(",", "")
+            try:
+                volume = int(float(volume_str))
+            except Exception as e:
+                logger.error(f"成交量转换错误，原始数据: '{data[6]}', 错误: {e}")
+                return None
+                
+            # 根据 full_code 判断是否为港股，港股的价格取自 data[2]，否则取 data[3]
+            price = float(data[2]) if full_code.startswith('hk') else float(data[3])
+            
             # 构建返回数据
             quote = {
                 'code': stock_code,
                 'name': data[1],
-                'price': float(data[3]),
+                'price': price,
                 'pre_close': float(data[4]),
                 'open': float(data[5]),
-                'volume': int(data[6]),
+                'volume': volume,
                 'amount': float(data[37]) if data[37] != '' else 0,
                 'high': float(data[33]),
                 'low': float(data[34]),
                 'date': datetime.now().strftime('%Y-%m-%d'),
                 'time': datetime.now().strftime('%H:%M:%S'),
-                'market': 'HK' if len(stock_code) == 5 else 'A股'  # 添加市场标识
+                'market': 'HK' if full_code.startswith('hk') else 'A股'
             }
             
             logger.info(f"获取行情数据成功 - {quote['market']} {stock_code} {quote['name']} 当前价格: {quote['price']}")
