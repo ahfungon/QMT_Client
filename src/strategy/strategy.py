@@ -68,8 +68,19 @@ class StrategyManager:
                     logger.info(f"策略 {i}:")
                     logger.info(f"    ID: {strategy.get('id')}")
                     logger.info(f"    股票: {strategy.get('stock_name')}({strategy.get('stock_code')})")
-                    logger.info(f"    动作: {strategy.get('action')}")
-                    logger.info(f"    仓位比例: {strategy.get('position_ratio')}")
+                    
+                    # 优化显示交易动作
+                    action = strategy.get('action')
+                    action_desc = {
+                        'buy': '买入',
+                        'sell': '卖出',
+                        'hold': '持有',
+                        'add': '加仓',
+                        'trim': '减仓'
+                    }.get(action, action)
+                    logger.info(f"    动作: {action_desc}")
+                    
+                    logger.info(f"    仓位比例: {strategy.get('position_ratio')}%")
                     logger.info(f"    价格区间: {strategy.get('price_min', '不限')} - {strategy.get('price_max', '不限')}")
                     logger.info(f"    执行状态: {strategy.get('execution_status')}")
                     logger.info(f"    是否有效: {strategy.get('is_active')}")
@@ -89,85 +100,53 @@ class StrategyManager:
             logger.error(f"获取策略时发生未知异常: {str(e)}")
             return []
             
-    def validate_strategy(self, strategy: Dict) -> bool:
+    def validate_strategy(self, strategy: dict) -> bool:
         """
         验证策略是否有效
         
         Args:
-            strategy: 策略信息
+            strategy: 策略数据
             
         Returns:
-            是否有效
+            bool: 是否有效
         """
-        logger.info(f"开始验证策略: {strategy.get('stock_code')} - {strategy.get('action')}")
-        
-        # 检查必要字段是否存在
-        required_fields = [
-            'stock_code', 'action', 'position_ratio',
-            'is_active'  # price_min 和 price_max 可以为空
-        ]
-        
-        for field in required_fields:
-            if field not in strategy:
-                logger.error(f"策略缺少必要字段: {field}")
-                return False
-            # 检查字段值是否为None
-            if strategy[field] is None:
-                logger.error(f"策略字段 {field} 的值为None")
-                return False
-                
-        # 检查字段值
-        if not strategy['is_active']:
-            logger.error("策略已失效")
-            return False
-            
         try:
-            # 转换为float进行数值比较
-            position_ratio = float(strategy['position_ratio'])
+            # 检查必要字段
+            required_fields = ['stock_code', 'stock_name', 'action', 'position_ratio']
+            for field in required_fields:
+                if field not in strategy:
+                    logger.error(f"策略缺少必要字段: {field}")
+                    return False
             
-            # 处理价格区间的特殊情况
-            price_min = strategy.get('price_min')
-            price_max = strategy.get('price_max')
-            
-            # 最低价为空或None时设为0
-            if price_min is None or price_min == '':
-                price_min = 0
-                logger.info("最低价为空，设置为0")
-            else:
-                price_min = float(price_min)
-                
-            # 最高价为空或None时设为正无穷
-            if price_max is None or price_max == '':
-                price_max = float('inf')
-                logger.info("最高价为空，设置为无穷大")
-            else:
-                price_max = float(price_max)
-            
-            # 更新策略中的价格值
-            strategy['price_min'] = price_min
-            strategy['price_max'] = price_max
-            
-            # 检查仓位比例是否超过最大限制
-            max_position_ratio = config.get('trading.max_position_ratio')
-            if position_ratio > max_position_ratio:
-                logger.error(f"仓位比例 {position_ratio} 超过最大限制 {max_position_ratio}")
+            # 检查策略状态是否激活
+            if not strategy.get('is_active', True):
+                logger.info(f"策略 {strategy.get('id')} 未激活")
                 return False
                 
-            if position_ratio <= 0:
-                logger.error(f"仓位比例无效: {position_ratio}")
+            # 检查交易类型
+            valid_actions = ['buy', 'sell', 'hold', 'add', 'trim']
+            if strategy['action'] not in valid_actions:
+                logger.error(f"策略交易类型无效: {strategy['action']}")
                 return False
                 
-            if price_min < 0:  # 只检查最低价是否小于0
-                logger.error(f"最低价无效: {price_min}")
-                return False
+            # 检查持仓比例是否超过最大限制（只有买入和加仓需要检查）
+            if strategy['action'] in ['buy', 'add']:
+                max_position_ratio = config.get('trading.max_position_ratio', 30)
+                if strategy['position_ratio'] > max_position_ratio:
+                    logger.warning(f"策略持仓比例 {strategy['position_ratio']}% 超过最大限制 {max_position_ratio}%")
+                    return False
                 
-            if price_min > price_max:
-                logger.error(f"最低价大于最高价: {price_min} > {price_max}")
-                return False
+            # 检查价格限制
+            if 'price_min' not in strategy:
+                strategy['price_min'] = None
+                logger.info(f"策略 {strategy.get('id')} 未设置最低价格限制")
                 
-        except (TypeError, ValueError) as e:
-            logger.error(f"策略数值字段格式错误: {str(e)}")
-            return False
+            if 'price_max' not in strategy:
+                strategy['price_max'] = None
+                logger.info(f"策略 {strategy.get('id')} 未设置最高价格限制")
+                
+            return True
             
-        logger.info(f"策略验证通过 - 价格区间: {price_min} - {price_max}")
-        return True 
+        except Exception as e:
+            logger.error(f"验证策略异常: {str(e)}")
+            return False 

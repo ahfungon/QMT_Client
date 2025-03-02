@@ -16,41 +16,40 @@ class Config:
         return cls._instance
 
     def __init__(self):
-        if not self._config:
-            self.load_config()
+        self.config = {}
+        self.load_config()
 
-    def load_config(self, config_path: str = "config/config.yaml"):
-        """
-        加载配置文件
-        
-        Args:
-            config_path: 配置文件路径
-        """
+    def load_config(self):
+        """加载配置文件"""
+        config_path = os.path.join('config', 'config.yaml')
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"配置文件不存在: {config_path}")
-
+            config_path = os.path.join('config', 'config.example.yaml')
+            
         with open(config_path, 'r', encoding='utf-8') as f:
-            self._config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f)
 
     def get(self, key: str, default: Any = None) -> Any:
-        """
-        获取配置项
-        
-        Args:
-            key: 配置键名，支持点号分隔的多级键名
-            default: 默认值
-        
-        Returns:
-            配置值
-        """
+        """获取配置值"""
         keys = key.split('.')
-        value = self._config
-        try:
-            for k in keys:
-                value = value[k]
-            return value
-        except (KeyError, TypeError):
-            return default
+        value = self.config
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+            else:
+                return default
+            if value is None:
+                return default
+        return value
+
+    def set(self, key: str, value: Any):
+        """设置配置值"""
+        keys = key.split('.')
+        config = self.config
+        for k in keys[:-1]:
+            if k not in config:
+                config[k] = {}
+            config = config[k]
+        config[keys[-1]] = value
 
     def update(self, key: str, value: Any):
         """
@@ -61,7 +60,7 @@ class Config:
             value: 新的配置值
         """
         keys = key.split('.')
-        config = self._config
+        config = self.config
         for k in keys[:-1]:
             config = config.setdefault(k, {})
         config[keys[-1]] = value
@@ -74,7 +73,7 @@ class Config:
             config_path: 配置文件路径
         """
         with open(config_path, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(self._config, f, allow_unicode=True)
+            yaml.safe_dump(self.config, f, allow_unicode=True)
 
 # 创建全局配置实例
 config = Config() 

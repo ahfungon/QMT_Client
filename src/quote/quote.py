@@ -140,4 +140,30 @@ class QuoteService:
             return None
         except Exception as e:
             logger.error(f"获取行情数据未知异常: {str(e)}")
-            return None 
+            return None
+
+    def get_stock_name(self, stock_code: str) -> str:
+        """
+        根据股票代码获取股票名称
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            str: 股票名称，如果获取失败则返回股票代码
+        """
+        try:
+            # 尝试从实时行情中获取股票名称
+            quote_data = self.get_real_time_quote(stock_code)
+            if quote_data and 'name' in quote_data:
+                return quote_data['name']
+            
+            # 如果实时行情中没有，尝试从本地缓存中获取
+            if hasattr(self, '_stock_name_cache') and stock_code in self._stock_name_cache:
+                return self._stock_name_cache[stock_code]
+            
+            # 都没有则返回股票代码
+            return stock_code
+        except Exception as e:
+            logger.warning(f"获取股票名称失败 - 股票代码: {stock_code}, 错误: {str(e)}")
+            return stock_code 

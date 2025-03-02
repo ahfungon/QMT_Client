@@ -1,24 +1,26 @@
 # 基础依赖
-requests>=2.31.0
-python-dateutil>=2.8.2
-pyyaml>=6.0.1
-pydantic>=2.5.2
-portalocker>=2.8.2
+PyQt6>=6.4.0
+requests>=2.28.0
+PyYAML>=6.0.0
+
+# 数据处理
+numpy>=1.23.0
+pandas>=1.5.0
+
+# 工具包
+portalocker>=2.7.0
+tenacity>=8.2.0
+
+# 开发工具
+pytest>=7.3.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
 
 # 调度器
 APScheduler>=3.10.1
 
 # 日志
 loguru>=0.7.2
-
-# 重试
-tenacity>=8.2.3
-
-# 测试
-pytest>=7.4.0
-pytest-cov>=4.1.0
-pytest-mock>=3.10.0
-pytest-asyncio>=0.21.1
 
 # 类型提示
 typing-extensions>=4.7.1
