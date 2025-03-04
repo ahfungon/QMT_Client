@@ -16,7 +16,7 @@ from src.config import config
 import requests
 import sys
 import os
-from PyQt6.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
 
 # 配置日志

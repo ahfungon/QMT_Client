@@ -1,13 +1,13 @@
 """主窗口模块"""
 import logging
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTableWidget, QTableWidgetItem,
     QStatusBar, QMessageBox, QHeaderView, QGroupBox,
     QTextEdit, QDialog, QLineEdit, QFormLayout
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QBrush
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QColor, QFont, QBrush
 from src.broker.simulator import SimulatedBroker
 from src.core.trader import Trader
 from src.core.strategy_manager import StrategyManager
